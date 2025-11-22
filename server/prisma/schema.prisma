@@ -1,0 +1,288 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Enums
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum FitnessGoal {
+  LOSE_WEIGHT
+  GAIN_MUSCLE
+  MAINTAIN
+  IMPROVE_ENDURANCE
+}
+
+enum WorkoutEnvironment {
+  GYM
+  HOME
+  BOTH
+}
+
+enum AuthProvider {
+  CREDENTIALS
+  GOOGLE
+}
+
+enum MuscleGroup {
+  CHEST
+  BACK
+  LEGS
+  SHOULDERS
+  ARMS
+  CORE
+  CARDIO
+  FULL_BODY
+}
+
+enum Equipment {
+  NONE
+  DUMBBELLS
+  BARBELL
+  MACHINE
+  RESISTANCE_BAND
+  KETTLEBELL
+  CABLE
+  BENCH
+  PULL_UP_BAR
+}
+
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum Mood {
+  EXCELLENT
+  GOOD
+  NEUTRAL
+  TIRED
+  EXHAUSTED
+}
+
+enum PhotoType {
+  FRONT
+  SIDE
+  BACK
+}
+
+// User Entity
+model User {
+  id                  String              @id @default(uuid())
+  email               String              @unique
+  password            String?             // Nullable for OAuth users
+  name                String
+  provider            AuthProvider        @default(CREDENTIALS)
+  providerId          String?             // External provider ID
+  
+  // Profile Information
+  dateOfBirth         DateTime?
+  gender              Gender?
+  currentWeight       Float?              // in kg
+  height              Float?              // in cm
+  goalWeight          Float?              // in kg
+  fitnessGoal         FitnessGoal?
+  workoutEnvironment  WorkoutEnvironment?
+  isOnboarded         Boolean             @default(false)
+  
+  // Timestamps
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  
+  // Relations
+  workoutPlans        WorkoutPlan[]
+  workoutSessions     WorkoutSession[]
+  progressLogs        ProgressLog[]
+  photos              Photo[]
+  
+  @@index([email])
+  @@index([provider, providerId])
+}
+
+// Exercise Entity - Master list of all exercises
+model Exercise {
+  id                  String              @id @default(uuid())
+  name                String              @unique
+  description         String
+  muscleGroup         MuscleGroup
+  equipment           Equipment
+  difficulty          Difficulty
+  videoUrl            String?
+  imageUrl            String?
+  instructions        Json?               // Step-by-step instructions
+  caloriesPerMinute   Float?              // Estimated calories burned per minute
+  
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  
+  // Relations
+  workoutExercises    WorkoutExercise[]
+  exerciseLogs        ExerciseLog[]
+  
+  @@index([muscleGroup])
+  @@index([equipment])
+  @@index([difficulty])
+}
+
+// WorkoutPlan Entity - Pre-defined or AI-generated plans
+model WorkoutPlan {
+  id                  String              @id @default(uuid())
+  userId              String
+  name                String
+  description         String?
+  goal                FitnessGoal
+  duration            Int                 // Duration in weeks
+  daysPerWeek         Int
+  isActive            Boolean             @default(false)
+  isAIGenerated       Boolean             @default(false)
+  
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  
+  // Relations
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutDays         WorkoutDay[]
+  
+  @@index([userId])
+  @@index([isActive])
+}
+
+// WorkoutDay Entity - Individual days within a plan
+model WorkoutDay {
+  id                  String              @id @default(uuid())
+  workoutPlanId       String
+  dayNumber           Int                 // 1-7 for days of week
+  name                String              // e.g., "Chest & Triceps"
+  isRestDay           Boolean             @default(false)
+  
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  
+  // Relations
+  workoutPlan         WorkoutPlan         @relation(fields: [workoutPlanId], references: [id], onDelete: Cascade)
+  workoutExercises    WorkoutExercise[]
+  workoutSessions     WorkoutSession[]
+  
+  @@index([workoutPlanId])
+}
+
+// WorkoutExercise Entity - Exercises within a workout day
+model WorkoutExercise {
+  id                  String              @id @default(uuid())
+  workoutDayId        String
+  exerciseId          String
+  orderIndex          Int                 // Order in workout
+  sets                Int
+  reps                String              // Can be range like "8-12"
+  restSeconds         Int                 // Rest time between sets
+  notes               String?
+  
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  
+  // Relations
+  workoutDay          WorkoutDay          @relation(fields: [workoutDayId], references: [id], onDelete: Cascade)
+  exercise            Exercise            @relation(fields: [exerciseId], references: [id])
+  
+  @@index([workoutDayId])
+  @@index([exerciseId])
+}
+
+// WorkoutSession Entity - Actual workout sessions completed
+model WorkoutSession {
+  id                  String              @id @default(uuid())
+  userId              String
+  workoutDayId        String?             // Nullable for custom workouts
+  startTime           DateTime
+  endTime             DateTime?
+  totalDuration       Int?                // Duration in minutes
+  caloriesBurned      Float?
+  notes               String?
+  
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  
+  // Relations
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutDay          WorkoutDay?         @relation(fields: [workoutDayId], references: [id])
+  exerciseLogs        ExerciseLog[]
+  
+  @@index([userId])
+  @@index([workoutDayId])
+  @@index([startTime])
+}
+
+// ExerciseLog Entity - Individual exercise performance tracking
+model ExerciseLog {
+  id                  String              @id @default(uuid())
+  workoutSessionId    String
+  exerciseId          String
+  setNumber           Int
+  reps                Int
+  weight              Float?              // Weight in kg
+  duration            Int?                // Duration in seconds (for cardio)
+  completed           Boolean             @default(true)
+  
+  createdAt           DateTime            @default(now())
+  
+  // Relations
+  workoutSession      WorkoutSession      @relation(fields: [workoutSessionId], references: [id], onDelete: Cascade)
+  exercise            Exercise            @relation(fields: [exerciseId], references: [id])
+  
+  @@index([workoutSessionId])
+  @@index([exerciseId])
+}
+
+// ProgressLog Entity - Daily progress tracking
+model ProgressLog {
+  id                  String              @id @default(uuid())
+  userId              String
+  date                DateTime            @default(now())
+  weight              Float?              // Weight in kg
+  caloriesBurned      Float?
+  mood                Mood?
+  notes               String?
+  
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  
+  // Relations
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+}
+
+// Photo Entity - Progress photos
+model Photo {
+  id                  String              @id @default(uuid())
+  userId              String
+  url                 String              // Cloudinary URL
+  publicId            String              // Cloudinary public ID
+  type                PhotoType
+  takenAt             DateTime            @default(now())
+  weight              Float?              // Weight at time of photo
+  notes               String?
+  
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  
+  // Relations
+  user                User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@index([takenAt])
+}
