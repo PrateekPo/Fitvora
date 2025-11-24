@@ -109,6 +109,7 @@ model User {
   
   @@index([email])
   @@index([provider, providerId])
+  @@unique([provider, providerId], map: "unique_provider_account")
 }
 
 // Exercise Entity - Master list of all exercises
@@ -222,6 +223,7 @@ model WorkoutSession {
   @@index([userId])
   @@index([workoutDayId])
   @@index([startTime])
+  @@index([userId, startTime])
 }
 
 // ExerciseLog Entity - Individual exercise performance tracking
@@ -243,6 +245,7 @@ model ExerciseLog {
   
   @@index([workoutSessionId])
   @@index([exerciseId])
+  @@index([workoutSessionId, exerciseId])
 }
 
 // ProgressLog Entity - Daily progress tracking
@@ -285,4 +288,5 @@ model Photo {
   
   @@index([userId])
   @@index([takenAt])
+  @@index([userId, takenAt])
 }
